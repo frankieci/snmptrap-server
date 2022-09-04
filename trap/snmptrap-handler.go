@@ -12,7 +12,7 @@ import (
 type TrapHandleFunc func(snmp *SNMPTrapMessage) error
 
 type TrapHnadler struct {
-	Handler TrapHandleFunc
+	Handlers []TrapHandleFunc
 }
 
 type SNMPTrapMessage struct {
@@ -44,14 +44,16 @@ func (t *TrapHnadler) BaseTrapHandler(packet *g.SnmpPacket, addr *net.UDPAddr) {
 
 	pdus := t.parseSnmpPacket(packet)
 
-	if t.Handler != nil {
-		snmpMessage := &SNMPTrapMessage{
-			Header:    header,
-			Body:      pdus,
-			Timestamp: int64(packet.Timestamp),
-		}
-		if err := t.Handler(snmpMessage); err != nil {
-			log.WithField("err", err).Error("Custom HandlerFunc handle SNMPTrapMessage run error")
+	for _, handler := range t.Handlers {
+		if handler != nil {
+			snmpMessage := &SNMPTrapMessage{
+				Header:    header,
+				Body:      pdus,
+				Timestamp: int64(packet.Timestamp),
+			}
+			if err := handler(snmpMessage); err != nil {
+				log.WithField("err", err).Error("%v HandlerFunc handle SNMPTrapMessage run error", handler)
+			}
 		}
 	}
 }

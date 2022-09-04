@@ -36,9 +36,10 @@ type TrapServerConf struct {
 	Timeout    int64  `mapstructure:"timeout" json:"timeout" yaml:"timeout"`
 	Maxoids    int64  `mapstructure:"maxoids" json:"maxoids" yaml:"maxoids"`
 	MibMapFile string `mapstructure:"mib_map_file" json:"mib_map_file" yaml:"mib_map_file"`
+	Print      bool   `mapstructure:"print" json:"print" yaml:"print"`
 }
 
-func NewTrapServer(conf *TrapServerConf, handler TrapHandleFunc) (*TrapServer, error) {
+func NewTrapServer(conf *TrapServerConf, handlers ...TrapHandleFunc) (*TrapServer, error) {
 	setTrapServerConf(conf)
 	// load mib map file in mibtree
 	if err := globalMibtree.LoadFile(conf.MibMapFile); err != nil {
@@ -47,7 +48,21 @@ func NewTrapServer(conf *TrapServerConf, handler TrapHandleFunc) (*TrapServer, e
 
 	tl := g.NewTrapListener()
 
-	trapHandler := &TrapHnadler{Handler: handler}
+	if conf.Print {
+		printHandler := func(snmp *SNMPTrapMessage) error {
+			header := GetSNMPTrapMessageHeader(snmp.Header)
+			body := GetSNMPTrapMessageBody(snmp.Body)
+			fmt.Println(header + body)
+			return nil
+		}
+		if len(handlers) <= 0 {
+			handlers = []TrapHandleFunc{}
+		}
+
+		handlers = append(handlers, printHandler)
+	}
+
+	trapHandler := &TrapHnadler{Handlers: handlers}
 	tl.OnNewTrap = trapHandler.TrapHandlerFunc()
 	var version g.SnmpVersion = g.Version2c
 	switch conf.Version {
